@@ -1,16 +1,15 @@
+package com.json2pojofieldsgenerator;
+
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.bohnman.squiggly.Squiggly;
 import com.github.bohnman.squiggly.util.SquigglyUtils;
+import com.json2pojofieldsgenerator.customclasses.CodeParser;
+import com.json2pojofieldsgenerator.customclasses.RetrieveClass;
 import com.sun.codemodel.JCodeModel;
-import org.jsonschema2pojo.DefaultGenerationConfig;
 import org.jsonschema2pojo.GenerationConfig;
-import org.jsonschema2pojo.Jackson2Annotator;
 import org.jsonschema2pojo.SchemaGenerator;
 import org.jsonschema2pojo.SchemaMapper;
-import org.jsonschema2pojo.SchemaStore;
-import org.jsonschema2pojo.SourceType;
-import org.jsonschema2pojo.rules.RuleFactory;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -23,7 +22,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
 
-
 public class Json2PojoFromFieldsGenerator {
 
     public static final String FOLDER_NAME_FOR_GENERATED_POJO = "generated";
@@ -34,17 +32,21 @@ public class Json2PojoFromFieldsGenerator {
     }
 
     public static void generatePojoFromJson(String json, String className, String packageName, String fields) throws IOException {
-        generatePojoFromJson(json, className, packageName);
-        if (fields != null) {
-            generatePojoFromFields(json, fields, className, packageName);
-        }
+
+        if (fields != null) generatePojoFromFields(json, fields, className, packageName);
+
+        else generatePojoFromJson(json, className, packageName);
+
     }
 
     private static void generatePojoFromJson(String json, String className, String packageName) throws IOException {
-        final GenerationConfig config = retrieveDefaultConfig();
+        final GenerationConfig config = RetrieveClass.defaultConfig();
 
         final JCodeModel codeModel = new JCodeModel();
-        final SchemaMapper mapper = new SchemaMapper(new RuleFactory(config, new Jackson2Annotator(config), new SchemaStore()), new SchemaGenerator());
+        final SchemaMapper mapper = new SchemaMapper(
+                RetrieveClass.ruleFactory(config),
+                new SchemaGenerator());
+
         mapper.generate(codeModel, className, packageName, json);
 
         final File dir = new File(FOLDER_NAME_FOR_GENERATED_POJO);
@@ -54,8 +56,12 @@ public class Json2PojoFromFieldsGenerator {
                     .map(Path::toFile)
                     .forEach(File::delete);
         }
+
         dir.mkdir();
+
         codeModel.build(dir);
+
+        CodeParser.removeLineBreaks(packageName);
     }
 
     private static void generatePojoFromFields(String json, String fields, String className, String packageName) throws IOException {
@@ -66,25 +72,6 @@ public class Json2PojoFromFieldsGenerator {
         objectMapper = Squiggly.init(new ObjectMapper(), fields);
         String jsonObject = SquigglyUtils.stringify(objectMapper, object);
         generatePojoFromJson(jsonObject, className, packageName);
-    }
-
-    private static GenerationConfig retrieveDefaultConfig() {
-        return new DefaultGenerationConfig() {
-            @Override
-            public boolean isGenerateBuilders() {
-                return true;
-            }
-
-            @Override
-            public SourceType getSourceType() {
-                return SourceType.JSON;
-            }
-            
-            @Override
-            public boolean isIncludeAdditionalProperties() {
-                return false;
-            }
-        };
     }
 
     private static String readJson(URL url) throws IOException {
